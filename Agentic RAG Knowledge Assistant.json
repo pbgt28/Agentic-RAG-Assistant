@@ -1,0 +1,577 @@
+{
+  "name": "Agentic RAG Knowledge Assistant",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Ingest documents into the knowledge base",
+        "formDescription": "Upload one or more PDF, DOCX, TXT, CSV, or Excel files and/or paste web URLs to index them for the RAG assistant.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Upload your file(s)",
+              "fieldType": "file",
+              "acceptFileTypes": ".pdf,.docx,.txt,.csv,.xlsx,.xls"
+            },
+            {
+              "fieldLabel": "Paste URLs (one per line)",
+              "fieldType": "textarea",
+              "placeholder": "https://example.com/page-1\nhttps://example.com/page-2"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c77e0fb7-a12b-49ec-8b4f-d8b9b960d067",
+      "name": "Upload documents",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        -576,
+        448
+      ],
+      "webhookId": "77555001-3c7f-45b7-adc1-19880c5131ce"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-binary",
+              "leftValue": "={{ $binary ? Object.keys($binary).length : 0 }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "bce5cb5d-3085-4946-ac53-7820d290ef68",
+      "name": "Has files?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -64,
+        -128
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "memoryKey": {
+          "__rl": true,
+          "mode": "list",
+          "value": "vector_store_key",
+          "cachedResultName": "vector_store_key"
+        }
+      },
+      "id": "b4001745-0135-44b2-ae0b-66ef1215e443",
+      "name": "Insert into Vector Store",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreInMemory",
+      "typeVersion": 1.3,
+      "position": [
+        160,
+        64
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "71656b4b-d070-4772-a832-161439cc7ddb",
+      "name": "Embeddings Google Gemini",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        208,
+        352
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "i3DZdkrZnTFOmjqe",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "dataType": "binary",
+        "textSplittingMode": "custom",
+        "options": {}
+      },
+      "id": "bf62a15f-4aa4-42dc-8995-b6999e944152",
+      "name": "Default Data Loader",
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [
+        304,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "chunkOverlap": 150,
+        "options": {}
+      },
+      "id": "1bb555b5-c4bc-40d5-a8ff-6c0bb44f8a08",
+      "name": "Recursive Character Text Splitter",
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [
+        304,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json['Paste URLs (one per line)'] || '';\nconst urls = String(raw)\n  .split(/[\\n,]+/)\n  .map((u) => u.trim())\n  .filter((u) => /^https?:\\/\\//i.test(u));\nreturn urls.map((url) => ({ json: { url } }));"
+      },
+      "id": "a285146e-c94c-4e60-9f68-d77d3ae614d6",
+      "name": "Split URLs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -64,
+        864
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "7c5159e5-b76c-4cca-9926-9e4dc3d2653e",
+      "name": "Fetch URL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        224,
+        1280
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "memoryKey": {
+          "__rl": true,
+          "mode": "list",
+          "value": "vector_store_key",
+          "cachedResultName": "vector_store_key"
+        }
+      },
+      "id": "97e464bd-b88e-4993-b547-2cc9ef325cb7",
+      "name": "Insert URLs into Vector Store",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreInMemory",
+      "typeVersion": 1.3,
+      "position": [
+        512,
+        864
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "bfbb3d37-a5e5-467e-b7fd-51a3f87f3ef6",
+      "name": "Embeddings Google Gemini (URLs)",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        528,
+        1088
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "i3DZdkrZnTFOmjqe",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonMode": "expressionData",
+        "jsonData": "={{ $json.data }}",
+        "textSplittingMode": "custom",
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              {
+                "name": "source",
+                "value": "={{ $('Split URLs').item.json.url }}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "38ddcc9a-f7a8-4c12-8c43-93abf4b9e67e",
+      "name": "URL Data Loader",
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [
+        656,
+        1088
+      ]
+    },
+    {
+      "parameters": {
+        "chunkOverlap": 150,
+        "options": {}
+      },
+      "id": "80c2ce4f-9d47-4bcc-afc5-1521cefe1a6c",
+      "name": "URL Text Splitter",
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [
+        656,
+        1296
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "704e71d1-46d5-4d9e-b046-013a86f4ac39",
+      "name": "When chat message received",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -544,
+        2144
+      ],
+      "webhookId": "2c90dee0-e7fb-4a7c-9c38-cebd1d3285b3"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "You are an advanced Autonomous Document & Web RAG Assistant. Provide factual, well-grounded, context-backed answers.\n\nCORE PRINCIPLES\n- Grounded truth: your primary source of truth is retrieved context from your tools (the \"knowledge_base\" retriever over ingested documents and web pages, and \"fetch_web_url\" for live URLs). If the retrieved sources do not contain sufficient evidence, reply exactly: \"The provided source materials do not contain sufficient information to answer this question.\" Never fabricate facts, dates, or citations.\n- Source attribution: back every factual claim with an inline citation referencing the specific document/section/page or URL, formatted as [Source: <Document/URL Name>, Page/Section: <X>].\n- Multi-format reasoning: for structured data (CSV/Excel) perform exact aggregations and state filters; for unstructured data (PDF/DOCX/web) synthesize narrative points and extract verbatim definitions when needed.\n\nWORKFLOW (ReAct loop)\n1. Analyze intent: decide whether to search ingested documents, fetch a URL, or combine both for a comparative synthesis. Decompose multi-hop questions.\n2. Retrieve: call \"knowledge_base\" for document questions; call \"fetch_web_url\" for any URL the user provides or that must be consulted live. If retrieval is vague, rewrite/expand the query and retry.\n3. Grade & re-rank: discard irrelevant passages. If sources conflict, highlight the discrepancy and each source's date.\n4. Synthesize: deliver clear, scannable answers with bold takeaways, tables for comparisons, and numbered steps where useful.\n\nOUTPUT FORMAT\n1. Executive Answer: 1-2 sentence direct resolution.\n2. Detailed Findings: grouped under ### headings / bullets, with inline source anchors on every critical claim.\n3. Comparative Table (only if multiple files/URLs are analyzed).\n4. Source References: bulleted list of every distinct source consulted."
+        }
+      },
+      "id": "d723bcdb-fd44-4924-b89b-388c64774edc",
+      "name": "RAG Assistant",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        256,
+        1968
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-flash-lite",
+        "options": {}
+      },
+      "id": "7ab60611-c74b-4780-8ed9-7fabc17f1bf1",
+      "name": "Google Gemini Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        -112,
+        2160
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "i3DZdkrZnTFOmjqe",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "contextWindowLength": 10
+      },
+      "id": "517d6d0f-933c-4b3a-9ab9-fa065c29a927",
+      "name": "Conversation Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [
+        256,
+        2192
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolDescription": "Search the ingested document knowledge base (PDF, DOCX, TXT, CSV, Excel, and ingested web pages) for passages relevant to the user question. Returns ranked chunks with metadata for citation.",
+        "memoryKey": {
+          "__rl": true,
+          "mode": "list",
+          "value": "vector_store_key",
+          "cachedResultName": "vector_store_key"
+        },
+        "topK": 6
+      },
+      "id": "e8b857ce-ad28-419a-8a3e-d8d7417d1085",
+      "name": "knowledge_base",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreInMemory",
+      "typeVersion": 1.3,
+      "position": [
+        480,
+        2224
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "04213e08-13d5-48d8-83a0-7db614a1ce5e",
+      "name": "Embeddings Google Gemini (Retrieve)",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        64,
+        2176
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "i3DZdkrZnTFOmjqe",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Upload documents": {
+      "main": [
+        [
+          {
+            "node": "Has files?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Split URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has files?": {
+      "main": [
+        [
+          {
+            "node": "Insert into Vector Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Google Gemini": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Insert into Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Insert into Vector Store",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recursive Character Text Splitter": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Default Data Loader",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split URLs": {
+      "main": [
+        [
+          {
+            "node": "Fetch URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch URL": {
+      "main": [
+        [
+          {
+            "node": "Insert URLs into Vector Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Google Gemini (URLs)": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Insert URLs into Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "URL Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Insert URLs into Vector Store",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "URL Text Splitter": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "URL Data Loader",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "RAG Assistant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "RAG Assistant",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Conversation Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "RAG Assistant",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "knowledge_base": {
+      "ai_tool": [
+        [
+          {
+            "node": "RAG Assistant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Google Gemini (Retrieve)": {
+      "ai_embedding": [
+        [
+          {
+            "node": "knowledge_base",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "675ba7ca-d72f-47b5-a251-9e83a41a3946",
+  "meta": {
+    "instanceId": "fe3881cc3426ffbad26379c1775544fc7e88e857c9177b0b3a6bcaa4c4c0cd9e"
+  },
+  "nodeGroups": [
+    {
+      "id": "e986db65-019c-46b6-b56e-8bc1d55c3dfd",
+      "name": "File Ingestion",
+      "nodeIds": [
+        "bce5cb5d-3085-4946-ac53-7820d290ef68",
+        "b4001745-0135-44b2-ae0b-66ef1215e443",
+        "71656b4b-d070-4772-a832-161439cc7ddb",
+        "bf62a15f-4aa4-42dc-8995-b6999e944152",
+        "1bb555b5-c4bc-40d5-a8ff-6c0bb44f8a08"
+      ],
+      "description": "Uploaded files are embedded and stored in the Simple Vector Store knowledge base."
+    },
+    {
+      "id": "3230ccb8-2646-4d9d-8c24-67be7316badc",
+      "name": "URL Ingestion",
+      "nodeIds": [
+        "a285146e-c94c-4e60-9f68-d77d3ae614d6",
+        "7c5159e5-b76c-4cca-9926-9e4dc3d2653e",
+        "97e464bd-b88e-4993-b547-2cc9ef325cb7",
+        "bfbb3d37-a5e5-467e-b7fd-51a3f87f3ef6",
+        "38ddcc9a-f7a8-4c12-8c43-93abf4b9e67e",
+        "80c2ce4f-9d47-4bcc-afc5-1521cefe1a6c"
+      ],
+      "description": "Pasted URLs are split, fetched, embedded, and stored in the same knowledge base."
+    },
+    {
+      "id": "a8391358-b946-4f4d-bd7b-afee64345432",
+      "name": "RAG Chat",
+      "nodeIds": [
+        "d723bcdb-fd44-4924-b89b-388c64774edc",
+        "7ab60611-c74b-4780-8ed9-7fabc17f1bf1",
+        "517d6d0f-933c-4b3a-9ab9-fa065c29a927",
+        "e8b857ce-ad28-419a-8a3e-d8d7417d1085",
+        "04213e08-13d5-48d8-83a0-7db614a1ce5e"
+      ],
+      "description": "The agent retrieves from the knowledge base and fetches live URLs to answer with citations."
+    }
+  ],
+  "id": "FkmlUyKFrFGXWaaH",
+  "tags": []
+}
