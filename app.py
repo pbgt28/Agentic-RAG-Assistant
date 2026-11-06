@@ -7,7 +7,7 @@ st.set_page_config(
 st.title("🤖 Agentic RAG Knowledge Assistant")
 
 # Your live n8n Cloud webhook endpoint
-CHAT_WEBHOOK_URL = "https://pbsb28.app.n8n.cloud/form/383dfa04-f9a0-49e4-826b-7bb95b08c467"
+CHAT_WEBHOOK_URL = "https://pbsb28.app.n8n.cloud/webhook/2c90dee0-e7fb-4a7c-9c38-cebd1d3285b3/chat"
 
 # Maintain chat history
 if "messages" not in st.session_state:
